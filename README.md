@@ -4,25 +4,28 @@ A simple python toolbox for RF Budget Analysis.
 
 Objectives are:
 
-* for me to understand,
+* for me to understand the formulas,
 * having something visual to play with under Jupyter Notebook,
-* having an opensource alternative to MATLAB RF Toolbox
+* having an open source alternative to [commercial products](#commercial-products-alternatives)
 
 ## Features
 
--[x] Gain
--[x] SNR
--[ ] OIP2
--[x] OIP3
--[ ] Free space loss
--[x] SVG export with [SchemDraw](https://schemdraw.readthedocs.io)
--[ ] Visual rendering under Jupyter Notebook
--[ ] Interactive Jupyter Notebook
+- [x] Gain
+- [x] SNR
+- [ ] OIP2
+- [x] OIP3
+- [ ] Free space loss
+- [x] SVG export with [SchemDraw](https://schemdraw.readthedocs.io)
+- [ ] Visual rendering under Jupyter Notebook
+- [ ] Interactive Jupyter Notebook
 
 ## Examples
 
-Here after a simple example. More examples to be found in [their own repository](examples/) but also in [unit tests](./tests/).
+Some examples can be found in [their own repository](examples/) but also in [unit tests](./tests/).
 
+[![superheterodyne](examples/test1.svg)](./examples/test1.py)
+
+But to start with, here is a simpler one.
 Let's imagine you have one filter with one 1dB loss, and an amplifier with 10dB of gain, but 3dB of noise figure. How is it best to sequence them?
 
 ![filter then LNA](test3-1.png)
@@ -85,3 +88,17 @@ Obvious result for those in the field but nice to compute and understand. ;-)
 * https://www.microwaves101.com/encyclopedias/noise-figure-one-and-two-friis-and-ieee
 * https://www.commagility.com/images/pdfs/white_papers/Introduction_to_RF_Link_Budgeting_CommAgility.pdf
 * https://www.youtube.com/watch?v=piIujfV3Nsw&list=PLGF140BA5wtWgW9bAd6DtF3MaYbhPtFwd
+* https://pysdr.org/content/link_budgets.html
+* https://markimicrowave.com/technical-resources/tools/ip3-intermodulation-calculator/
+* http://edadownload.software.keysight.com/eedl/ads/2011_01/pdf/rfsysbudget.pdf
+
+* https://link-budget.readthedocs.io
+* https://github.com/cfragoas/SatLink
+
+
+## Commercial products alternatives
+
+* [ADIsimRF](https://www.analog.com/en/design-center/adisimrf.html)
+* [ Cascade Analysis Python Script](https://kb.awr.com/display/awrscripts/Cascade+Analysis+Python+Script)
+* [MATLAB RF Toolbox™](https://fr.mathworks.com/help/rf/index.html?s_tid=CRUX_lftnav)
+* [Signal Chain Explorer](https://robustcircuitdesign.com/signal-chain-explorer/)
