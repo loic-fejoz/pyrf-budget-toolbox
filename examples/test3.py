@@ -1,7 +1,7 @@
 from numpy import log10
 from rfbudget import *
 
-the_filter = Loss(name="filter", loss=1)
+the_filter = Loss(name="Filter's Loss", loss=1)
 
 a1 = Amplifier(
     name='LNA',
@@ -18,6 +18,10 @@ b1 = budget(
 )
 
 b1.display()
+opt = {'with_gain': True, 'with_nf': True, 'simplified': True}
+d = b1.schemdraw(opt)
+# d.draw()
+d.save('test3-1.svg')
 
 b2 = budget(
     elements=[a1, the_filter],
@@ -28,3 +32,7 @@ b2 = budget(
 )
 
 b2.display()
+
+d = b2.schemdraw(opt)
+# d.draw()
+d.save('test3-2.svg')

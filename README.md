@@ -15,6 +15,7 @@ Objectives are:
 -[ ] OIP2
 -[x] OIP3
 -[ ] Free space loss
+-[x] SVG export with [SchemDraw](https://schemdraw.readthedocs.io)
 -[ ] Visual rendering under Jupyter Notebook
 -[ ] Interactive Jupyter Notebook
 
@@ -23,6 +24,9 @@ Objectives are:
 Here after a simple example. More examples to be found in [their own repository](examples/) but also in [unit tests](./tests/).
 
 Let's imagine you have one filter with one 1dB loss, and an amplifier with 10dB of gain, but 3dB of noise figure. How is it best to sequence them?
+
+![filter then LNA](test3-1.png)
+![LNA then filter](test3-2.png)
 
 ```python
 from rfbudget import *

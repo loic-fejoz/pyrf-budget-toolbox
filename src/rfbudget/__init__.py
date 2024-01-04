@@ -1,4 +1,6 @@
 from numpy import log10, log2
+import schemdraw
+from schemdraw import dsp
 
 def GHz(f):
     return f * 1e9
@@ -20,7 +22,7 @@ class Element:
         nf is noise figure
     """
     def __init__(self, name=None, gain=0, nf=0, oip3=None, iip3=None):
-        self.name = name
+        self.name = name or ''
         self.gain = gain
         self.nf = nf
         self.iip3 = iip3
@@ -31,6 +33,29 @@ class Element:
             self.iip3 = oip3 - gain
         else:
             self.oip3 = float('inf')
+
+    def schemdraw(self, d, options):
+        return self.schemdraw_label(options, dsp.Box(w=d.unit/3, h=d.unit/3).label(self.name, 'bottom'))
+    
+    def schemdraw_label(self, options, b):
+        lbl = ''
+        if options['with_gain'] and self.gain:
+            lbl += 'gain={0:.2f}dB\n'.format(self.gain)
+        if options['with_nf'] and self.nf:
+            lbl += 'NF={0:.2f}dB\n'.format(self.nf)
+        if options['with_iip'] and self.iip3:
+            lbl += 'IIP3={0:.2f}dB\n'.format(self.iip3)
+        if options['with_oip'] and self.oip3:
+            lbl += 'OIP3={0:.2f}dB\n'.format(self.oip3)
+        return b.label(lbl, 'top', ofst=(-0.2, 0.6), fontsize=6)
+
+class Antenna(Element):
+    def __init__(self, name=None, gain=0, nf=0, iip3=None, oip3=None, z=50):
+        Element.__init__(self, name=name or 'Antenna', gain=gain, nf=nf, iip3=iip3, oip3=oip3)
+        self.z = z
+
+    def schemdraw(self, d, options):
+        return self.schemdraw_label(options, dsp.Antenna().label(self.name, 'bottom'))
 
 class NPort(Element):
     def __init__(self):
@@ -44,11 +69,17 @@ class TwoPortsElement(Element):
 
 class Amplifier(TwoPortsElement):
     def __init__(self, name=None, gain=0, nf=0, iip3=None, oip3=None, z_in=50, z_out=50):
-        TwoPortsElement.__init__(self, name=name, gain=gain, nf=nf, iip3=iip3, oip3=oip3, z_in=z_in, z_out=z_out)
+        TwoPortsElement.__init__(self, name=name or 'LNA', gain=gain, nf=nf, iip3=iip3, oip3=oip3, z_in=z_in, z_out=z_out)
+
+    def schemdraw(self, d, options):
+        return self.schemdraw_label(options, dsp.Amp().fill('lightblue').label(self.name, 'bottom'))
 
 class Loss(TwoPortsElement):
     def __init__(self, name=None, loss=None, oip3=None, z_in=50, z_out=50):
-        TwoPortsElement.__init__(self, name=name, gain=-loss, nf=loss, oip3=oip3, z_in=z_in, z_out=z_out)
+        TwoPortsElement.__init__(self, name=name or 'Loss', gain=-loss, nf=loss, oip3=oip3, z_in=z_in, z_out=z_out)
+
+    def schemdraw(self, d, options):
+        return self.schemdraw_label(options, dsp.Box(w=d.unit/3, h=d.unit/3).fill('#ffeeee').label(self.name, 'bottom'))
 
 class ConverterType:
     Down = 'Down'
@@ -56,16 +87,25 @@ class ConverterType:
 
 class Modulator(TwoPortsElement):
     def __init__(self, name=None, gain=0, nf=0, oip3=None, lo=0, converter_type=None):
-        TwoPortsElement.__init__(self, name=name, gain=gain, nf=nf, oip3=oip3)
+        TwoPortsElement.__init__(self, name=name or 'Mixer', gain=gain, nf=nf, oip3=oip3)
         self.lo = lo
         assert converter_type != None
         self.converter_type = converter_type
 
+    def schemdraw(self, d, options):
+        mix = dsp.Mixer().anchor('W').fill('navajowhite').label(self.name, 'bottom')
+        dsp.Line().at(mix.S).down(d.unit/3)
+        dsp.Oscillator().right().anchor('N').fill('navajowhite').label('LO', 'right', ofst=.2)
+        return self.schemdraw_label(options, mix)
+
 class Filter(TwoPortsElement):
     Butterworth = None
     def __init__(self, name=None, gain=0, nf=0, oip3=None, z_in=50, z_out=50, filter_order=0):
-        TwoPortsElement.__init__(self, name=name, gain=gain, nf=nf, oip3=oip3, z_in=z_in, z_out=z_out)
+        TwoPortsElement.__init__(self, name=name or 'Mixer', gain=gain, nf=nf, oip3=oip3, z_in=z_in, z_out=z_out)
         self.filter_order = filter_order
+
+    def schemdraw(self, d, options):
+        return self.schemdraw_label(options, dsp.Filter().anchor('W').fill('thistle').label(self.name, 'bottom', ofst=.2))
 
 filter = Filter
 
@@ -75,12 +115,44 @@ class BandpassFilter(Filter):
         self.center_freq = center_freq
         self.bandwidth = bandwidth
 
+    def schemdraw(self, d, options):
+        return self.schemdraw_label(options, dsp.Filter(response='bp').anchor('W').fill('thistle').label(self.name, 'bottom', ofst=.2))
+
 class ButterworthBandpassFilter(BandpassFilter):
     def __init__(self, name=None, nf=0, oip3=None, z_in=50, z_out=50, filter_order=0, center_freq=0, bandwidth=0, passband_attenuation=0, gain=0):
         BandpassFilter.__init__(self, name=name, gain=gain, nf=nf, oip3=oip3, z_in=z_in, z_out=z_out, filter_order=filter_order, center_freq=center_freq, bandwidth=bandwidth)
         self.passband_attenuation = passband_attenuation
 
 filter.Butterworth = ButterworthBandpassFilter
+
+def into_schemdraw(elements, options=None):
+    if options is None:
+        options = {}
+    options.setdefault('simplified', True)
+    options.setdefault('with_gain', not options['simplified'])
+    options.setdefault('with_nf', not options['simplified'])
+    options.setdefault('with_iip', not options['simplified'])
+    options.setdefault('with_oip', not options['simplified'])
+    with schemdraw.Drawing() as d:
+        d.config(fontsize=12)
+        last_i = len(elements)
+        previous = None
+        for elt in elements:
+            if previous != None:
+                try:
+                    anchor = previous.E
+                except AttributeError:
+                    anchor = None
+                if anchor:
+                    dsp.Line().at(previous.E).length(d.unit/4)
+                else:
+                    dsp.Line().length(d.unit/4)
+            elif not isinstance(previous, Antenna):
+                dsp.Line().length(d.unit/4)
+            previous = elt.schemdraw(d, options)
+        if previous != None and not isinstance(elements[-1], Antenna):
+            dsp.Arrow().right(d.unit/3)
+        return d
 
 class Budget:
     def __init__(self, elements=[], input_freq=None, available_input_power=0, signal_bandwidth=1, without_oip=False):
@@ -90,6 +162,9 @@ class Budget:
         self.signal_bandwidth = signal_bandwidth
         self.with_oip = not without_oip
         self.update()
+
+    def schemdraw(self, options=None):
+        return into_schemdraw(self.elements, options)
 
     def update(self):
         nb_elts = len(self.elements)

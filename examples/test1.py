@@ -9,7 +9,7 @@ bwpass = MHz(20)
 Z = 132.986
 
 tr_switch = Element(
-    name='TRSwitch',
+    name='TR_Switch',
     gain=-1.3,
     nf=2.3,
     oip3=37
@@ -60,7 +60,7 @@ b2 = filter.Butterworth(
 )
 
 a3 = Amplifier(
-    name='IFAmp',
+    name='IF_Amp',
     gain=40-insertion_loss,
     nf=2.5,
     oip3=37,
@@ -82,3 +82,6 @@ superhet = budget(
 )
 
 superhet.display()
+d = superhet.schemdraw({'simplified': False})
+d.draw()
+# d.save('test1.svg')
