@@ -17,6 +17,21 @@ def dB(v):
 def dBm(v):
     return v
 
+def watt_to_dBm(v):
+    return 10 * log10(v * 1000)
+
+def m(v):
+    return v
+
+def dm(v):
+    return 10 * v
+
+def hm(v):
+    return 100 * v
+
+def km(v):
+    return 1000 * v
+
 class Element:
     """
         nf is noise figure
@@ -37,9 +52,12 @@ class Element:
     def schemdraw(self, d, options):
         return self.schemdraw_label(options, dsp.Box(w=d.unit/3, h=d.unit/3).label(self.name, 'bottom'))
     
-    def schemdraw_label(self, options, b):
-        lbl = ''
-        if options['with_gain'] and self.gain:
+    def schemdraw_label(self, options, b, lbl=None):
+        if lbl is None:
+            lbl = ''
+        else:
+            lbl = str(lbl)
+        if options['with_gain'] and self.gain != None:
             lbl += 'gain={0:.2f}dB\n'.format(self.gain)
         if options['with_nf'] and self.nf:
             lbl += 'NF={0:.2f}dB\n'.format(self.nf)
@@ -80,6 +98,84 @@ class Loss(TwoPortsElement):
 
     def schemdraw(self, d, options):
         return self.schemdraw_label(options, dsp.Box(w=d.unit/3, h=d.unit/3).fill('#ffeeee').label(self.name, 'bottom'))
+
+class PathLoss(Loss):
+    def __init__(self, name=None, loss=None, oip3=None, z_in=50, z_out=50):
+        Loss.__init__(self, name=name or 'PathLoss', loss=loss, oip3=oip3, z_in=z_in, z_out=z_out)
+
+class FreeSpacePathLossFriis(PathLoss):
+    def __init__(self, name=None, distance=None, freq=None, oip3=None, z_in=50, z_out=50):
+        self.distance = distance
+        loss = 20 * log10(distance) + 20 * log10(freq) - 147.55
+        PathLoss.__init__(self, name=name or 'FPSL', loss=loss, oip3=oip3, z_in=z_in, z_out=z_out)
+
+    def schemdraw(self, d, options):
+        return self.schemdraw_label(
+            options,
+            dsp.Box(w=d.unit/3, h=d.unit/3).fill('#eeeeff').label(self.name, 'bottom'),
+            lbl='d={0:.2f}m\n'.format(self.distance))
+
+class OkumuraHataPathLoss(PathLoss):
+    """See https://en.wikipedia.org/wiki/Hata_model
+    """
+    SMALL_CITY = 'small city'
+    MEDIUM_CITY = 'medium city'
+    LARGE_CITY = 'large city'
+    SUBURBAN = 'suburban environment'
+    OPEN = 'open environment'
+
+    def __init__(self, name=None,
+                 distance=None,
+                 freq=None,
+                 base_height=None,
+                 mobile_height=None,
+                 environment = None,
+                 oip3=None, z_in=50, z_out=50):
+        self.distance = distance
+        self.mobile_height = mobile_height
+        self.base_height = base_height
+        self.freq = freq
+        self.environment = environment
+        f = freq / MHz(1)
+        d = distance / km(1)
+        hb = base_height / m(1)
+        hm = mobile_height / m(1)
+        if hb < 30 or hb > 200:
+            raise ValueError('Expected height of base station to be in 30-200m range')
+        if hm < 1 or hm > 10:
+            raise ValueError('Expected height of mobile station to be in 1-10m range')
+        if d < 1 or d > 10:
+            raise ValueError('Expected distance to be in 1-10km range')
+        # Compute ch, the Antenna height correction factor
+        if environment in [OkumuraHataPathLoss.SMALL, OkumuraHataPathLoss.MEDIUM, OkumuraHataPathLoss.SUBURBAN, OkumuraHataPathLoss.OPEN]:
+            ch = 0.8 + (1.1 * log10(f) - 0.7) * hm - 1.56 * log10(f)
+        elif environment == OkumuraHataPathLoss.LARGE:
+            if f < 150:
+                raise ValueError('Expected frequency to be in 150MHz - 1.5GHz range')
+            elif f <= 200:
+                ch = 8.29 * log10(1.54 * hm)**2 - 1.1
+            elif f <= 1500:
+                ch = 3.2 * log10(11.75 * hm)**2 - 4.97
+            else:
+                raise ValueError('Expected frequency to be in 150MHz - 1.5GHz range')
+        else:
+            raise ValueError('Unexpected environment')
+        # Path loss in urban areas. Unit: decibel (dB)
+        loss = 69.55 + 26.16 * log10(f) - 13.82 * log10(hb) - ch + (44.9 - 6.55 * log10(hb)) * log10(d)
+        if environment == OkumuraHataPathLoss.SUBURBAN:
+            loss = loss - 2 * log10(f/28)**2 - 5.4
+        elif environment == OkumuraHataPathLoss.OPEN:
+            loss = loss - 4.78 * log10(f)**2 + 18.33 * log10(f) - 40.94
+        PathLoss.__init__(self, name=name or environment or 'city', loss=loss, oip3=oip3, z_in=z_in, z_out=z_out)
+
+    def schemdraw(self, d, options):
+        return self.schemdraw_label(
+            options,
+            dsp.Box(w=d.unit/3, h=d.unit/3).fill('#eeeeff').label(self.name, 'bottom'),
+            lbl='d={0:.2f}m\nh_b={0:.2f}m\nh_m={0:.2f}m\n'.format(self.distance, self.base_height, self.mobile_height))
+
+# TODO https://en.wikipedia.org/wiki/Radio_propagation#Models
+# TODO add https://en.wikipedia.org/wiki/COST_Hata_model
 
 class ConverterType:
     Down = 'Down'
@@ -136,6 +232,9 @@ def into_schemdraw(elements, options=None):
     with schemdraw.Drawing() as d:
         d.config(fontsize=12)
         last_i = len(elements)
+        # Previous RfBudget Element
+        prev = None
+        # Previous SchemDraw Element
         previous = None
         for elt in elements:
             if previous != None:
@@ -144,12 +243,15 @@ def into_schemdraw(elements, options=None):
                 except AttributeError:
                     anchor = None
                 if anchor:
-                    dsp.Line().at(previous.E).length(d.unit/4)
+                    the_line = dsp.Line().at(previous.E).length(d.unit/4)
                 else:
-                    dsp.Line().length(d.unit/4)
+                    the_line = dsp.Line().length(d.unit/4)
+                if isinstance(elt, PathLoss) or isinstance(prev, PathLoss):
+                    the_line.color('#FFFFFF00')
             elif not isinstance(previous, Antenna):
                 dsp.Line().length(d.unit/4)
             previous = elt.schemdraw(d, options)
+            prev = elt
         if previous != None and not isinstance(elements[-1], Antenna):
             dsp.Arrow().right(d.unit/3)
         return d
