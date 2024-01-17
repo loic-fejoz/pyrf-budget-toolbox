@@ -1,3 +1,4 @@
+import io
 from numpy import log10, log2
 import schemdraw
 from schemdraw import dsp
@@ -353,6 +354,14 @@ class Budget:
             self.iip3 = [self.oip3[stage] - self.transducer_gain[stage] for stage, elt in enumerate(self.elements)]
 
     def display(self):
+        try:
+            from IPython.display import display, HTML
+            return display(HTML(self.to_html()))
+        except ImportError:
+            self.print()
+            return None
+
+    def print(self):
         print("rfbudget with properties:")
         print("Elements: [1x{} rf.internal.rfbudget.Element]".format(len(self.elements)))
         print("InputFrequency:", self.input_freq, "Hz")
@@ -371,5 +380,35 @@ class Budget:
             print("OIP3:            (dBm)\t", self.oip3)
         print("SNR:             (dB)\t", self.snr)
         print("ChannelCapacity: (bps)\t", self.capacity)
+
+    def html_cell_format(self, a_list):
+        return "".join(map(lambda v: "<td>{0:.2f}</td>".format(v), a_list))
+
+    def to_html(self):
+        html = io.StringIO('')
+        print("<div>\n", file=html)
+        print("<h3>RF budget with properties</h3>", file=html)
+        print("<table>", file=html)
+        print("<tr><td>Elements:</td><td>[1x{} rf.internal.rfbudget.Element]</td></tr>".format(len(self.elements)), file=html)
+        print("<tr><td>InputFrequency</td><td>", self.input_freq, "Hz</td></tr>", file=html)
+        print("<tr><td>AvailableInputPower</td><td>", self.available_input_power, " dBm</td></tr>", file=html)
+        print("<tr><td>SignalBandwidth</td><td>", self.signal_bandwidth, "Hz</td></tr>", file=html)
+        print("<tr><td>Solver</td><td>Friis</td></tr>", file=html)
+        print("</table>", file=html)
+        print("<h3>Analysis Results</h3>", file=html)
+        print("<table>", file=html)
+        print("<tr><td>ThermalNoise:</td><td>(dBm)</td>", "<td>{0:.2f}</td>".format(self.receiver_thermal_noise_dBm), "</tr>", file=html)
+        print("<tr><td>OutputFrequency:</td><td>(Hz)</td>", self.html_cell_format(self.output_freq), "</tr>", file=html)
+        print("<tr><td>OutputPower:</td><td>(dBm)</td>", self.html_cell_format(self.output_power), "</tr>", file=html)
+        print("<tr><td>TransducerGain:</td><td>(dB)</td>", self.html_cell_format(self.transducer_gain), "</tr>", file=html)
+        print("<tr><td>Noisefigure:</td><td>(dB)</td>", self.html_cell_format(self.nf), "</tr>", file=html)
+        if self.with_oip:
+            print("<tr><td>IIP3:</td><td>(dBm)</td>", self.html_cell_format(self.iip3), "</tr>", file=html)
+            print("<tr><td>OIP3:</td><td>(dBm)</td>", self.html_cell_format(self.oip3), "</tr>", file=html)
+        print("<tr><td>SNR:</td><td>(dB)</td>", self.html_cell_format(self.snr), "</tr>", file=html)
+        print("<tr><td>ChannelCapacity:</td><td>(bps)</td>", self.html_cell_format(self.capacity), "</tr>", file=html)
+        print("</table>", file=html)
+        print("</div>\n", file=html)
+        return html.getvalue()
 
 budget = Budget
