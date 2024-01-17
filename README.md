@@ -14,9 +14,9 @@ Objectives are:
 - [x] SNR
 - [ ] OIP2
 - [x] OIP3
-- [ ] Free space loss
+- [x] Free space loss
 - [x] SVG export with [SchemDraw](https://schemdraw.readthedocs.io)
-- [ ] Visual rendering under Jupyter Notebook
+- [x] Visual rendering under Jupyter Notebook
 - [ ] Interactive Jupyter Notebook
 
 ## Examples
@@ -24,6 +24,7 @@ Objectives are:
 Some examples can be found in [their own repository](examples/) but also in [unit tests](./tests/).
 
 [![superheterodyne](examples/test1.svg)](./examples/test1.py)
+[![ADSB](examples/test_adsb.png)](./examples/adsb.ipynb)
 
 But to start with, here is a simpler one.
 Let's imagine you have one filter with one 1dB loss, and an amplifier with 10dB of gain, but 3dB of noise figure. How is it best to sequence them?

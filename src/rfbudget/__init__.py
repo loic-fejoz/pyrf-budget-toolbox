@@ -222,7 +222,8 @@ class ButterworthBandpassFilter(BandpassFilter):
 
 filter.Butterworth = ButterworthBandpassFilter
 
-def into_schemdraw(elements, options=None):
+def into_schemdraw(elements, options=None, as_html_table=False):
+    html = io.StringIO('')
     if options is None:
         options = {}
     options.setdefault('simplified', True)
@@ -231,6 +232,13 @@ def into_schemdraw(elements, options=None):
     options.setdefault('with_iip', not options['simplified'])
     options.setdefault('with_oip', not options['simplified'])
     with schemdraw.Drawing() as d:
+        if as_html_table:
+            d.outfile = None
+            d.fig = None
+            d.show = False
+            d = schemdraw.Drawing()
+            d.__enter__()
+            d.config(fontsize=12)
         d.config(fontsize=12)
         last_i = len(elements)
         # Previous RfBudget Element
@@ -238,12 +246,13 @@ def into_schemdraw(elements, options=None):
         # Previous SchemDraw Element
         previous = None
         for elt in elements:
+            html.write('<td>')
             if previous != None:
                 try:
                     anchor = previous.E
                 except AttributeError:
                     anchor = None
-                if anchor:
+                if anchor and not as_html_table:
                     the_line = dsp.Line().at(previous.E).length(d.unit/4)
                 else:
                     the_line = dsp.Line().length(d.unit/4)
@@ -253,6 +262,22 @@ def into_schemdraw(elements, options=None):
                 dsp.Line().length(d.unit/4)
             previous = elt.schemdraw(d, options)
             prev = elt
+            if as_html_table:
+                d.add(previous)
+                d._drawsvg(None, showframe=False)
+                svg_img = d._repr_svg_()
+                html.write(svg_img)
+                previous = None
+                d.outfile = None
+                d.fig = None
+                d.show = False
+                d.__exit__(None, None, None)
+                d = schemdraw.Drawing()
+                d.__enter__()
+                d.config(fontsize=12)
+                html.write('</td>')
+        if as_html_table:
+            return html.getvalue()            
         if previous != None and not isinstance(elements[-1], Antenna):
             dsp.Arrow().right(d.unit/3)
         return d
@@ -266,8 +291,8 @@ class Budget:
         self.with_oip = not without_oip
         self.update()
 
-    def schemdraw(self, options=None):
-        return into_schemdraw(self.elements, options)
+    def schemdraw(self, options=None, as_html_table=False):
+        return into_schemdraw(self.elements, options, as_html_table=as_html_table)
 
     def update(self):
         nb_elts = len(self.elements)
@@ -353,10 +378,10 @@ class Budget:
             self.oip3 = [self.oip3[stage] for stage, elt in enumerate(self.elements)]
             self.iip3 = [self.oip3[stage] - self.transducer_gain[stage] for stage, elt in enumerate(self.elements)]
 
-    def display(self):
+    def display(self, with_icons=False, options=None):
         try:
             from IPython.display import display, HTML
-            return display(HTML(self.to_html()))
+            return display(HTML(self.to_html(with_icons=with_icons, options=options)))
         except ImportError:
             self.print()
             return None
@@ -384,7 +409,7 @@ class Budget:
     def html_cell_format(self, a_list):
         return "".join(map(lambda v: "<td>{0:.2f}</td>".format(v), a_list))
 
-    def to_html(self):
+    def to_html(self, with_icons=False, options=None):
         html = io.StringIO('')
         print("<div>\n", file=html)
         print("<h3>RF budget with properties</h3>", file=html)
@@ -397,6 +422,8 @@ class Budget:
         print("</table>", file=html)
         print("<h3>Analysis Results</h3>", file=html)
         print("<table>", file=html)
+        if with_icons:
+            print("<tr><td></td><td></td>", self.schemdraw(options, as_html_table=True), "</tr>", file=html)
         print("<tr><td>ThermalNoise:</td><td>(dBm)</td>", "<td>{0:.2f}</td>".format(self.receiver_thermal_noise_dBm), "</tr>", file=html)
         print("<tr><td>OutputFrequency:</td><td>(Hz)</td>", self.html_cell_format(self.output_freq), "</tr>", file=html)
         print("<tr><td>OutputPower:</td><td>(dBm)</td>", self.html_cell_format(self.output_power), "</tr>", file=html)
