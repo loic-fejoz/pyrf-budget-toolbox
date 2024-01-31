@@ -1,5 +1,7 @@
 import io
 from numpy import log10, log2
+import math
+from math import sin, cos, sqrt
 import schemdraw
 from schemdraw import dsp
 
@@ -32,6 +34,54 @@ def hm(v):
 
 def km(v):
     return 1000 * v
+
+def degree(v):
+    return v
+
+def radians(v):
+    return math.degrees(v)
+
+def to_radians(v):
+    return math.radians(v)
+
+def kelvin(v):
+    return v
+
+def celsius(v):
+    return v + 273.15
+
+def to_celsius(v):
+    return v - 273.15
+
+EARTH_RADIUS = km(6378.166)
+
+def distance_max(elevation, orbit_radius, r=None):
+    """
+    elevations in degrees
+    """
+    el = math.radians(elevation)
+    if r is None:
+        r = EARTH_RADIUS # Earth Radius
+    # return -1 * r * sin(elevation) + sqrt((r * sin(elevation))**2 + height**2 + 2 * r * height)
+    return r *(math.sqrt((((orbit_radius**2)/(r**2))-((math.cos(el))**2)))-math.sin(el))
+
+class Orbit:
+    def __init__(self, apogee, perigee=None, inclination=None, planet_radius=None):
+        if perigee is None:
+            perigee = apogee
+        if planet_radius is None:
+            planet_radius = EARTH_RADIUS
+        self.planet_radius = planet_radius
+        self.apogee = apogee
+        self.perigee = perigee
+        self.inclination = inclination
+        self.semi_major_axis = (self.apogee + self.perigee + 2 * planet_radius) / 2
+        self.eccentricity = ((self.apogee + planet_radius) - (self.perigee + planet_radius)) / ((self.apogee + planet_radius) + (self.perigee + planet_radius))
+        self.mean_altitude = (self.apogee + self.perigee) / 2
+        self.mean_radius = planet_radius + self.mean_altitude
+
+    def slant_range(self, elevation):
+        return distance_max(elevation, self.mean_radius, self.planet_radius)
 
 class Element:
     """
@@ -115,6 +165,27 @@ class FreeSpacePathLossFriis(PathLoss):
             options,
             dsp.Box(w=d.unit/3, h=d.unit/3).fill('#eeeeff').label(self.name, 'bottom'),
             lbl='d={0:.2f}m\n'.format(self.distance))
+
+class RadarFreeSpaceBasicLoss(PathLoss):
+    """
+    https://www.itu.int/dms_pubrec/itu-r/rec/p/R-REC-P.525-2-199408-S!!PDF-E.pdf
+    """
+    def __init__(self, name=None, distance=None, sigma=None, freq=None, oip3=None, z_in=50, z_out=50):
+        """
+        Two way loss of the signal of a radar.
+        distance: distance from the radar to the target
+        sigma: radar target cross-section (m²)
+        """
+        self.distance = distance
+        self.sigma = sigma
+        loss = 103.4 + 20 * log10(freq / MHz(1)) + 40 * log10(distance / km(1)) - 10 * log10(sigma)
+        PathLoss.__init__(self, name=name or 'FPSL', loss=loss, oip3=oip3, z_in=z_in, z_out=z_out)
+
+    def schemdraw(self, d, options):
+        return self.schemdraw_label(
+            options,
+            dsp.Box(w=d.unit/3, h=d.unit/3).fill('#eeeeff').label(self.name, 'bottom'),
+            lbl='d={0:.2f}m\nσ={0:.2f}m\n'.format(self.distance, self.sigma))
 
 class OkumuraHataPathLoss(PathLoss):
     """See https://en.wikipedia.org/wiki/Hata_model
@@ -283,12 +354,13 @@ def into_schemdraw(elements, options=None, as_html_table=False):
         return d
 
 class Budget:
-    def __init__(self, elements=[], input_freq=None, available_input_power=0, signal_bandwidth=1, without_oip=False):
+    def __init__(self, elements=[], input_freq=None, available_input_power=0, signal_bandwidth=1, without_oip=False, T_receiver=None):
         self.elements = elements
         self.input_freq = input_freq
         self.available_input_power = available_input_power
         self.signal_bandwidth = signal_bandwidth
         self.with_oip = not without_oip
+        self.T_receiver = T_receiver
         self.update()
 
     def schemdraw(self, options=None, as_html_table=False):
@@ -312,8 +384,9 @@ class Budget:
         self.capacity = {}
 
         k_boltzmann = 1.38e-23
-        T_receiver = 290 # Kelvin
-        receiver_thermal_noise_W = k_boltzmann * T_receiver * self.signal_bandwidth
+        if self.T_receiver is None:
+            self.T_receiver = 290 # Kelvin
+        receiver_thermal_noise_W = k_boltzmann * self.T_receiver * self.signal_bandwidth
         self.receiver_thermal_noise_dBm = 10 * log10(receiver_thermal_noise_W * 1000)
 
         oip3_parts = []
