@@ -335,7 +335,7 @@ def into_schemdraw(elements, options=None, as_html_table=False):
             prev = elt
             if as_html_table:
                 d.add(previous)
-                d._drawsvg(None, showframe=False)
+                d._drawsvg(None)
                 svg_img = d._repr_svg_()
                 html.write(svg_img)
                 previous = None

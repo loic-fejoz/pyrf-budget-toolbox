@@ -1,2 +1,2 @@
-numpy
-schemdraw
+numpy >= 2.2.2
+schemdraw == 0.19

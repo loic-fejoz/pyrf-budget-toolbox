@@ -39,3 +39,4 @@ opt = {'with_gain': True, 'with_nf': True, 'simplified': True}
 d = adbs_budget.schemdraw(opt)
 # d.draw()
 d.save('test_adsb.svg')
+# print(adbs_budget.to_html(with_icons=True))

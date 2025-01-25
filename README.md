@@ -82,6 +82,30 @@ It returns a noise figure of 4dB at the output.
 Similarly one can compute, the other sequence and get 3dB.
 Obvious result for those in the field but nice to compute and understand. ;-)
 
+## Jupyter
+
+
+Optionnaly you may better want to use virtual python environment:
+
+```sh
+python3 -m venv ./venv
+source ./venv/bin/activate
+pip3 install -r requirements.txt
+```
+
+Before looking at the examples from Jupyter, you need to first install this library and Jupyter:
+
+```sh
+pip3 install --editable .
+pip3 install jupyter
+```
+
+Later on, you just have to launch Jupyter and navigate into the examples folder:
+
+```sh
+jupyter notebook
+```
+
 ## Source of inspiration
 
 * http://www.diva-portal.org/smash/get/diva2:1371826/FULLTEXT01.pdf
