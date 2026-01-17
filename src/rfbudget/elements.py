@@ -155,7 +155,7 @@ class Filter(TwoPortsElement):
     ):
         TwoPortsElement.__init__(
             self,
-            name=name or "Mixer",
+            name=name or "Filter",
             gain=gain,
             nf=nf,
             oip3=oip3,

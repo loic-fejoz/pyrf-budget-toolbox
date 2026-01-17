@@ -123,6 +123,8 @@ class Budget:
 
             # Output frequency
             prev_freq = output_freq_dict.get(stage - 1, self.input_freq)
+            if prev_freq is None:
+                prev_freq = Hz(0)
             if isinstance(elt, Modulator):
                 if elt.converter_type == ConverterType.Down:
                     output_freq_dict[stage] = Hz_t(prev_freq - elt.lo)
@@ -215,6 +217,14 @@ class Budget:
     def to_html(self, with_icons: bool = False, options: Optional[dict] = None) -> str:
         import io
 
+        if options is None:
+            options = {}
+        options.setdefault("simplified", True)
+        options.setdefault("with_gain", not options["simplified"])
+        options.setdefault("with_nf", not options["simplified"])
+        options.setdefault("with_iip", not options["simplified"])
+        options.setdefault("with_oip", not options["simplified"])
+
         html = io.StringIO("")
         print("<div>\n", file=html)
         print("<h3>RF budget with properties</h3>", file=html)
@@ -262,61 +272,72 @@ class Budget:
             "</tr>",
             file=html,
         )
-        print(
-            "<tr><td>OutputFrequency:</td><td>(Hz)</td>",
-            self.html_cell_format(self.output_freq),
-            "</tr>",
-            file=html,
-        )
+        if not options.get("simplified"):
+            print(
+                "<tr><td>OutputFrequency:</td><td>(Hz)</td>",
+                self.html_cell_format(self.output_freq),
+                "</tr>",
+                file=html,
+            )
         print(
             "<tr><td>OutputPower:</td><td>(dBm)</td>",
             self.html_cell_format(self.output_power),
             "</tr>",
             file=html,
         )
-        print(
-            "<tr><td>TransducerGain:</td><td>(dB)</td>",
-            self.html_cell_format(self.transducer_gain),
-            "</tr>",
-            file=html,
-        )
-        print(
-            "<tr><td>Noisefigure:</td><td>(dB)</td>",
-            self.html_cell_format(self.nf),
-            "</tr>",
-            file=html,
-        )
+        if not options.get("simplified") or options.get("with_gain"):
+            print(
+                "<tr><td>TransducerGain:</td><td>(dB)</td>",
+                self.html_cell_format(self.transducer_gain),
+                "</tr>",
+                file=html,
+            )
+        if not options.get("simplified") or options.get("with_nf"):
+            print(
+                "<tr><td>Noisefigure:</td><td>(dB)</td>",
+                self.html_cell_format(self.nf),
+                "</tr>",
+                file=html,
+            )
         if self.with_oip:
-            print(
-                "<tr><td>IIP3:</td><td>(dBm)</td>",
-                self.html_cell_format(self.iip3),
-                "</tr>",
-                file=html,
-            )
-            print(
-                "<tr><td>OIP3:</td><td>(dBm)</td>",
-                self.html_cell_format(self.oip3),
-                "</tr>",
-                file=html,
-            )
+            if not options.get("simplified") or options.get("with_iip"):
+                print(
+                    "<tr><td>IIP3:</td><td>(dBm)</td>",
+                    self.html_cell_format(self.iip3),
+                    "</tr>",
+                    file=html,
+                )
+            if not options.get("simplified") or options.get("with_oip"):
+                print(
+                    "<tr><td>OIP3:</td><td>(dBm)</td>",
+                    self.html_cell_format(self.oip3),
+                    "</tr>",
+                    file=html,
+                )
         print(
             "<tr><td>SNR:</td><td>(dB)</td>",
             self.html_cell_format(self.snr),
             "</tr>",
             file=html,
         )
-        print(
-            "<tr><td>ChannelCapacity:</td><td>(bps)</td>",
-            self.html_cell_format(self.capacity),
-            "</tr>",
-            file=html,
-        )
+        if not options.get("simplified"):
+            print(
+                "<tr><td>ChannelCapacity:</td><td>(bps)</td>",
+                self.html_cell_format(self.capacity),
+                "</tr>",
+                file=html,
+            )
         print("</table>", file=html)
         print("</div>\n", file=html)
         return html.getvalue()
 
     def html_cell_format(self, a_list: List[Any]) -> str:
-        return "".join(map(lambda v: "<td>{0:.2f}</td>".format(v), a_list))
+        return "".join(
+            map(
+                lambda v: "<td>{}</td>".format("{0:.2f}".format(v) if v is not None else ""),
+                a_list,
+            )
+        )
 
     def display(self, with_icons: bool = False, options: Optional[dict] = None) -> Any:
         try:

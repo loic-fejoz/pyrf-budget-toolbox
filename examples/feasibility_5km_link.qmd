@@ -28,7 +28,7 @@ In this example, we estimate the feasibility of a 5 km radio link at 2.4 GHz bet
 import matplotlib
 import matplotlib.pyplot as plt
 from rfbudget import GHz, km, dB, dBm, Antenna, Loss, FreeSpacePathLossFriis, budget
-opt = {"with_gain": True, "with_nf": True, "simplified": True}
+opt = {"with_gain": True, "with_nf": False, "simplified": True}
 ```
 
 # Downlink Analysis (AP to Client)
@@ -36,11 +36,11 @@ opt = {"with_gain": True, "with_nf": True, "simplified": True}
 The signal travels from the AP's transmitter, through the cable, to the AP's antenna, crosses the 5 km path, is picked up by the Client's antenna, and finally reaches the Client's receiver through its cable.
 
 ```{python}
-ap_tx_cable = Loss(name='AP Cable', loss=dB(2))
-ap_antenna = Antenna(name='AP Antenna', gain=dB(10))
+ap_tx_cable = Loss(name='AP\nCable', loss=dB(2))
+ap_antenna = Antenna(name='AP\nAntenna', gain=dB(10))
 path = FreeSpacePathLossFriis(distance=km(5), freq=GHz(2.4))
-client_antenna = Antenna(name='Client Antenna', gain=dB(14))
-client_rx_cable = Loss(name='Client Cable', loss=dB(2))
+client_antenna = Antenna(name='Client\nAntenna', gain=dB(14))
+client_rx_cable = Loss(name='Client\nCable', loss=dB(2))
 
 downlink = budget(
     elements=[ap_tx_cable, ap_antenna, path, client_antenna, client_rx_cable],
@@ -48,6 +48,11 @@ downlink = budget(
     input_freq=GHz(2.4)
 )
 
+_svg_ = downlink.schemdraw({"simplified": False, "with_nf": False})
+```
+
+```{python}
+#| code-fold: true
 downlink.display(with_icons=True, options=opt)
 plt.close()
 ```

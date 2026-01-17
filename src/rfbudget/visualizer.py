@@ -16,6 +16,7 @@ from .propagation import (
     FreeSpacePathLossFriis,
     RadarFreeSpaceBasicLoss,
     OkumuraHataPathLoss,
+    CostHataPathLoss,
 )
 
 
@@ -34,15 +35,16 @@ def schemdraw_label(
         lbl += "IIP3={0:.2f}dB\n".format(elt.iip3)
     if options.get("with_oip") and elt.oip3:
         lbl += "OIP3={0:.2f}dB\n".format(elt.oip3)
-    return b.label(lbl, "top", ofst=(-0.2, 0.6), fontsize=6)
+    return b.label(lbl, "top", ofst=(-0.2, 0.6), fontsize=options.get("attr-font-size", 6))
 
 
 def draw_element(elt: Element, d: Any, options: dict) -> Any:
+    options.setdefault("label-font-size", 8)
     if isinstance(elt, Antenna):
-        return schemdraw_label(elt, options, dsp.Antenna().label(elt.name, "bottom"))
+        return schemdraw_label(elt, options, dsp.Antenna().label(elt.name, "bottom", fontsize=options.get("label-font-size")))
     elif isinstance(elt, Amplifier):
         return schemdraw_label(
-            elt, options, dsp.Amp().fill("lightblue").label(elt.name, "bottom")
+            elt, options, dsp.Amp().fill("lightblue").label(elt.name, "bottom", fontsize=options.get("label-font-size"))
         )
     elif isinstance(elt, FreeSpacePathLossFriis):
         return schemdraw_label(
@@ -50,7 +52,7 @@ def draw_element(elt: Element, d: Any, options: dict) -> Any:
             options,
             dsp.Box(w=d.unit / 3, h=d.unit / 3)
             .fill("#eeeeff")
-            .label(elt.name, "bottom"),
+            .label(elt.name, "bottom", ofst=(0.0, -0.2), fontsize=options.get("label-font-size")),
             lbl="d={0:.2f}m\n".format(elt.distance),
         )
     elif isinstance(elt, RadarFreeSpaceBasicLoss):
@@ -59,10 +61,8 @@ def draw_element(elt: Element, d: Any, options: dict) -> Any:
             options,
             dsp.Box(w=d.unit / 3, h=d.unit / 3)
             .fill("#eeeeff")
-            .label(elt.name, "bottom"),
-            lbl="d={0:.2f}m\nσ={0:.2f}m\n".format(
-                elt.distance,
-            ),
+            .label(elt.name, "bottom", ofst=(0.0, -0.2), fontsize=options.get("label-font-size")),
+            lbl="d={0:.2f}m\nσ={1:.2f}m\n".format(elt.distance, elt.sigma),
         )
     elif isinstance(elt, OkumuraHataPathLoss):
         return schemdraw_label(
@@ -70,9 +70,20 @@ def draw_element(elt: Element, d: Any, options: dict) -> Any:
             options,
             dsp.Box(w=d.unit / 3, h=d.unit / 3)
             .fill("#eeeeff")
-            .label(elt.name, "bottom"),
-            lbl="d={0:.2f}m\nh_b={0:.2f}m\nh_m={0:.2f}m\n".format(
-                elt.distance,
+            .label(elt.name, "bottom", ofst=(0.0, -0.2), fontsize=options.get("label-font-size")),
+            lbl="d={0:.2f}m\nh_b={1:.2f}m\nh_m={2:.2f}m\n".format(
+                elt.distance, elt.base_height, elt.mobile_height
+            ),
+        )
+    elif isinstance(elt, CostHataPathLoss):
+        return schemdraw_label(
+            elt,
+            options,
+            dsp.Box(w=d.unit / 3, h=d.unit / 3)
+            .fill("#eeeeff")
+            .label(elt.name, "bottom",  ofst=(0.0, -0.2), fontsize=options.get("label-font-size")),
+            lbl="d={0:.2f}m\nh_b={1:.2f}m\nh_m={2:.2f}m\n".format(
+                elt.distance, elt.base_height, elt.mobile_height
             ),
         )
     elif isinstance(elt, PathLoss):
@@ -81,7 +92,7 @@ def draw_element(elt: Element, d: Any, options: dict) -> Any:
             options,
             dsp.Box(w=d.unit / 3, h=d.unit / 3)
             .fill("#eeeeff")
-            .label(elt.name, "bottom"),
+            .label(elt.name, "bottom", ofst=(0.0, -0.2), fontsize=options.get("label-font-size")),
         )
     elif isinstance(elt, Loss):
         return schemdraw_label(
@@ -89,13 +100,18 @@ def draw_element(elt: Element, d: Any, options: dict) -> Any:
             options,
             dsp.Box(w=d.unit / 3, h=d.unit / 3)
             .fill("#ffeeee")
-            .label(elt.name, "bottom"),
+            .label(elt.name, "bottom", ofst=(0.0, -0.2), fontsize=options.get("label-font-size")),
         )
     elif isinstance(elt, Modulator):
-        mix = dsp.Mixer().anchor("W").fill("navajowhite").label(elt.name, "bottom")
-        dsp.Line().at(mix.S).down(d.unit / 3)
-        dsp.Oscillator().right().anchor("N").fill("navajowhite").label(
-            "LO", "right", ofst=0.2
+        mix = dsp.Mixer().anchor("W").fill("navajowhite").label(elt.name, "bottom", fontsize=options.get("label-font-size"))
+        d.add(mix)
+        d.add(dsp.Line().at(mix.S).down(d.unit / 3))
+        d.add(
+            dsp.Oscillator()
+            .right()
+            .anchor("N")
+            .fill("navajowhite")
+            .label("LO", "right", ofst=0.2)
         )
         return schemdraw_label(elt, options, mix)
     elif isinstance(elt, BandpassFilter):
@@ -105,7 +121,7 @@ def draw_element(elt: Element, d: Any, options: dict) -> Any:
             dsp.Filter(response="bp")
             .anchor("W")
             .fill("thistle")
-            .label(elt.name, "bottom", ofst=0.2),
+            .label(elt.name, "bottom", ofst=0.2, fontsize=options.get("label-font-size")),
         )
     elif isinstance(elt, Filter):
         return schemdraw_label(
@@ -114,13 +130,13 @@ def draw_element(elt: Element, d: Any, options: dict) -> Any:
             dsp.Filter()
             .anchor("W")
             .fill("thistle")
-            .label(elt.name, "bottom", ofst=0.2),
+            .label(elt.name, "bottom", ofst=0.2, fontsize=options.get("label-font-size")),
         )
     else:
         return schemdraw_label(
             elt,
             options,
-            dsp.Box(w=d.unit / 3, h=d.unit / 3).label(elt.name, "bottom"),
+            dsp.Box(w=d.unit / 3, h=d.unit / 3).label(elt.name, "bottom", fontsize=options.get("label-font-size")),
         )
 
 
@@ -135,6 +151,8 @@ def into_schemdraw(
     options.setdefault("with_nf", not options["simplified"])
     options.setdefault("with_iip", not options["simplified"])
     options.setdefault("with_oip", not options["simplified"])
+    options.setdefault("label-font-size", 12)
+    options.setdefault("attr-font-size", 10)
     with schemdraw.Drawing() as d:
         if as_html_table:
             d.outfile = None
