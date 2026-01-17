@@ -1,20 +1,23 @@
-# Architecture
+## Modular Structure
+The codebase is organized into several focused modules to ensure maintainability and separation of concerns:
 
-## Core Concept
-The toolbox follows a cascade-based analysis approach. Elements (Amplifiers, Filters, Mixers, etc.) are defined individually and then arranged in a sequence (the budget).
+- `src/rfbudget/core.py`: Contains the `Element` base class and the `Budget` solver logic.
+- `src/rfbudget/elements.py`: Implementation of standard RF components (`Amplifier`, `Loss`, `Modulator`, `Filter`).
+- `src/rfbudget/propagation.py`: Specialized `PathLoss` models (Free Space, Okumura-Hata, Radar).
+- `src/rfbudget/physics.py`: Orbital mechanics and slant range calculation logic.
+- `src/rfbudget/utils.py`: Unit types (`NewType`), conversion helpers, and physical constants.
+- `src/rfbudget/visualizer.py`: Consolidated logic for `schemdraw` generation.
+
+The public API is re-exported in `src/rfbudget/__init__.py` for backward compatibility.
 
 ## Data Flow
-1. **Element Definition**: Users define components with specific RF parameters (gain, noise figure, IP3).
-2. **Budget Creation**: Elements are passed to the `budget()` function along with input conditions (frequency, power, bandwidth).
-3. **Solver**: The toolbox uses the Friis formulas to compute cascaded results.
-    - See `src/rfbudget/__init__.py` for the `budget` class logic.
-4. **Calculations**: Results like Noise Figure, SNR, and Output Power are stored as arrays, representing the cumulative value at each stage of the cascade.
-
-## Key Classes
-- `Element`: Base class for all RF components.
-- `Amplifier`, `Loss`, `Mixer`: Specialized element types.
-- `budget`: Container that performs the analysis and stores results.
+1. **Element Definition**: Users define components using classes from `elements.py` or `propagation.py`.
+2. **Budget Creation**: Elements are passed to the `Budget` class (defined in `core.py`).
+3. **Solver**: The `Budget.update()` method computes cascaded results using Friis formulas.
+4. **Calculations**: Results (Noise Figure, SNR, Power) are arrays representing cumulative values at each cascade stage.
 
 ## Visualization
-Schematic diagrams are generated using `schemdraw`. Most elements have a `.draw()` method to contribute to the overall schematic.
+Visualization is decoupled from the core logic. While `Element` and `Budget` classes have `.schemdraw()` methods for convenience, the actual rendering logic resides in `visualizer.py`.
+- **Schematics**: Generated via `schemdraw`.
+- **Interactive**: `Budget.display()` renders HTML tables for Jupyter/IPython.
 - Example: [test1.py](examples/test1.py) shows how to build and display a budget.

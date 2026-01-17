@@ -11,3 +11,8 @@ addopts = [
     "--import-mode=importlib",
 ]
 pythonpath = "src"
+
+[dependency-groups]
+dev = [
+    "ruff>=0.14.13",
+]

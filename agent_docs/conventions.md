@@ -30,3 +30,9 @@ Use the provided helper functions to declare units. They convert to internal sta
 ## Code Style
 Follow PEP 8. Use `ruff check .` to verify compliance.
 Avoid complex inheritance; favor composition by adding elements to a budget.
+
+## Module Organization
+- **Add new elements** to `src/rfbudget/elements.py`.
+- **Add new propagation models** to `src/rfbudget/propagation.py`.
+- **Add new unit helpers** to `src/rfbudget/utils.py`.
+- **Visualization logic** must stay in `src/rfbudget/visualizer.py`. Core classes should only provide thin delegation wrappers to maintain decoupling.
