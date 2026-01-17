@@ -1,5 +1,5 @@
 from numpy import log10
-from typing import Optional
+from typing import Optional, Any
 from .elements import PathLoss
 from .utils import Hz_t, dBm_t, m_t, dB, MHz, km, m, Hz
 
@@ -19,6 +19,11 @@ class FreeSpacePathLossFriis(PathLoss):
         PathLoss.__init__(
             self, name=name or "FPSL", loss=loss, oip3=oip3, z_in=z_in, z_out=z_out
         )
+
+    def schemdraw(self, d: Any, options: dict) -> Any:
+        from .visualizer import draw_element
+
+        return draw_element(self, d, options)
 
 
 class RadarFreeSpaceBasicLoss(PathLoss):
@@ -52,6 +57,11 @@ class RadarFreeSpaceBasicLoss(PathLoss):
         PathLoss.__init__(
             self, name=name or "FPSL", loss=loss, oip3=oip3, z_in=z_in, z_out=z_out
         )
+
+    def schemdraw(self, d: Any, options: dict) -> Any:
+        from .visualizer import draw_element
+
+        return draw_element(self, d, options)
 
 
 class OkumuraHataPathLoss(PathLoss):
@@ -129,3 +139,82 @@ class OkumuraHataPathLoss(PathLoss):
             z_in=z_in,
             z_out=z_out,
         )
+
+    def schemdraw(self, d: Any, options: dict) -> Any:
+        from .visualizer import draw_element
+
+        return draw_element(self, d, options)
+
+
+class CostHataPathLoss(PathLoss):
+    """See https://en.wikipedia.org/wiki/COST_Hata_model"""
+
+    METROPOLITAN = "metropolitan"
+    MEDIUM_CITY_SUBURBAN = "medium city or suburban"
+
+    def __init__(
+        self,
+        name: Optional[str] = None,
+        distance: m_t = m(0),
+        freq: Hz_t = Hz(0),
+        base_height: m_t = m(30),
+        mobile_height: m_t = m(1),
+        environment: str = MEDIUM_CITY_SUBURBAN,
+        oip3: Optional[dBm_t] = None,
+        z_in: float = 50,
+        z_out: float = 50,
+    ):
+        self.distance: m_t = distance
+        self.mobile_height: m_t = mobile_height
+        self.base_height: m_t = base_height
+        self.freq: Hz_t = freq
+        self.environment: str = environment
+
+        f = freq / MHz(1)
+        d_km = distance / km(1)
+        hb = base_height / m(1)
+        hm = mobile_height / m(1)
+
+        # Constraints (Wikipedia)
+        if f < 1500 or f > 2000:
+            raise ValueError("Expected frequency to be in 1500MHz - 2GHz range")
+        if hb < 30 or hb > 200:
+            raise ValueError("Expected height of base station to be in 30-200m range")
+        if hm < 1 or hm > 10:
+            raise ValueError("Expected height of mobile station to be in 1-10m range")
+        if d_km < 1 or d_km > 20:
+            raise ValueError("Expected distance to be in 1-20km range")
+
+        # antenna height correction factor a(hm)
+        ch = (1.1 * log10(f) - 0.7) * hm - (1.56 * log10(f) - 0.8)
+
+        # Constant C
+        if environment == CostHataPathLoss.METROPOLITAN:
+            c = 3
+        elif environment == CostHataPathLoss.MEDIUM_CITY_SUBURBAN:
+            c = 0
+        else:
+            raise ValueError("Unexpected environment")
+
+        loss = dB(
+            46.3
+            + 33.9 * log10(f)
+            - 13.82 * log10(hb)
+            - ch
+            + (44.9 - 6.55 * log10(hb)) * log10(d_km)
+            + c
+        )
+
+        PathLoss.__init__(
+            self,
+            name=name or f"COST Hata ({environment})",
+            loss=loss,
+            oip3=oip3,
+            z_in=z_in,
+            z_out=z_out,
+        )
+
+    def schemdraw(self, d: Any, options: dict) -> Any:
+        from .visualizer import draw_element
+
+        return draw_element(self, d, options)

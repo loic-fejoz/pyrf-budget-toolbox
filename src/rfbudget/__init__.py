@@ -48,6 +48,7 @@ from .propagation import (
     FreeSpacePathLossFriis,
     RadarFreeSpaceBasicLoss,
     OkumuraHataPathLoss,
+    CostHataPathLoss,
 )
 from .visualizer import into_schemdraw
 
@@ -97,6 +98,7 @@ __all__ = [
     "FreeSpacePathLossFriis",
     "RadarFreeSpaceBasicLoss",
     "OkumuraHataPathLoss",
+    "CostHataPathLoss",
     "into_schemdraw",
     "budget",
 ]
