@@ -1,6 +1,6 @@
 import matplotlib
 
-matplotlib.use("Agg")
+# matplotlib.use("Agg")
 
 from .utils import (
     Hz_t,

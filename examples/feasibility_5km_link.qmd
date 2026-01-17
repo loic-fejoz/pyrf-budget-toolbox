@@ -1,0 +1,155 @@
+---
+title: "Radio Link Feasibility: 5 km at 2.4 GHz"
+format: html
+---
+
+# Introduction
+
+In this example, we estimate the feasibility of a 5 km radio link at 2.4 GHz between an Access Point (AP) and a Client.
+
+## System Parameters
+
+- **Frequency**: 2.4 GHz
+- **Distance**: 5 km
+- **Access Point (AP)**:
+    - Transmit Power: 20 dBm
+    - Antenna Gain: 10 dBi
+    - Receive Sensitivity: -89 dBm
+- **Client**:
+    - Transmit Power: 15 dBm
+    - Antenna Gain: 14 dBi
+    - Receive Sensitivity: -82 dBm
+- **Cable Loss**: 2 dB on each side.
+
+# Setup
+
+```{python}
+#| code-fold: true
+import matplotlib
+import matplotlib.pyplot as plt
+from rfbudget import GHz, km, dB, dBm, Antenna, Loss, FreeSpacePathLossFriis, budget
+opt = {"with_gain": True, "with_nf": True, "simplified": True}
+```
+
+# Downlink Analysis (AP to Client)
+
+The signal travels from the AP's transmitter, through the cable, to the AP's antenna, crosses the 5 km path, is picked up by the Client's antenna, and finally reaches the Client's receiver through its cable.
+
+```{python}
+ap_tx_cable = Loss(name='AP Cable', loss=dB(2))
+ap_antenna = Antenna(name='AP Antenna', gain=dB(10))
+path = FreeSpacePathLossFriis(distance=km(5), freq=GHz(2.4))
+client_antenna = Antenna(name='Client Antenna', gain=dB(14))
+client_rx_cable = Loss(name='Client Cable', loss=dB(2))
+
+downlink = budget(
+    elements=[ap_tx_cable, ap_antenna, path, client_antenna, client_rx_cable],
+    available_input_power=dBm(20), # AP Transmit Power
+    input_freq=GHz(2.4)
+)
+
+downlink.display(with_icons=True, options=opt)
+plt.close()
+```
+
+The receive power at the Client is compared to its sensitivity (-82 dBm).
+
+```{python}
+#| code-fold: true
+received_power_down = dBm(downlink.output_power[-1])
+sensitivity_client = dBm(-82)
+margin_down = received_power_down - sensitivity_client
+indicator = "✅" if margin_down > 0 else "❌"
+print(f"Downlink Margin: {margin_down:.2f} dB {indicator}")
+```
+
+## Path Loss Visualization
+
+The following chart illustrates the power level through the system. We use the library's `FreeSpacePathLossFriis` class to compute the continuous path loss and leverage the `downlink` budget results to show the stage-by-stage transitions.
+
+```{python}
+#| code-fold: true
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Distances for the curve (1m to 5km)
+distances_km = np.linspace(0.001, 5, 200)
+
+# Function to compute power at any distance using the library models
+def get_p_rx(d_km):
+    # We sum the effects of non-path elements from our downlink setup
+    # AP Cable (-2) + AP Antenna (+10) + Client Antenna (+14) + Client Cable (-2) = +20 dB
+    fixed_gain = ap_tx_cable.gain + ap_antenna.gain + client_antenna.gain + client_rx_cable.gain
+    
+    # Path loss for this distance
+    path_loss = FreeSpacePathLossFriis(distance=km(d_km), freq=GHz(2.4)).gain
+    
+    # Starting power + fixed gain + path loss
+    return 20 + fixed_gain + path_loss
+
+# Compute curve
+p_rx_curve = [get_p_rx(d) for d in distances_km]
+
+# Extract discrete stages from our already computed 'downlink' object
+# stages: 0 (AP Cable), 1 (AP Antenna), 2 (Path), 3 (Client Antenna), 4 (Client Cable)
+stages_x = [-1, 0, 5, 6, 7] # Distances where elements are conceptually located
+stages_y = [dBm(p) for p in downlink.output_power]
+stage_names = [e.name for e in downlink.elements]
+
+plt.figure(figsize=(10, 6))
+
+# Plot continuous path loss
+plt.plot(distances_km, p_rx_curve, label='Channel Propagation', color='#1f77b4', linewidth=2, alpha=0.7)
+
+# Plot discrete stages from the budget object
+plt.step(stages_x, stages_y, where='post', color='orange', linestyle='--', label='System Stages', alpha=0.8)
+plt.scatter(stages_x, stages_y, color='orange', zorder=5)
+
+# Annotate stages
+for i, txt in enumerate(stage_names):
+    plt.annotate(txt, (stages_x[i], stages_y[i]), textcoords="offset points", xytext=(5,5 if i%2==0 else -15), ha='left', fontsize=9)
+
+plt.axhline(y=-82, color='r', linestyle=':', label='Client Sensitivity (-82 dBm)')
+plt.fill_between(distances_km, p_rx_curve, -82, where=(np.array(p_rx_curve) >= -82), color='green', alpha=0.1, label='Feasibility Zone')
+
+plt.title('Link Budget Analysis: Power Level vs. Distance', fontsize=14)
+plt.xlabel('Distance (km)', fontsize=12)
+plt.ylabel('Power (dBm)', fontsize=12)
+plt.grid(True, which='both', linestyle='--', alpha=0.3)
+plt.legend(loc='lower left')
+plt.ylim(-110, 35)
+plt.show()
+```
+
+# Uplink Analysis (Client to AP)
+
+```{python}
+client_tx_cable = Loss(name='Client Cable', loss=dB(2))
+client_antenna = Antenna(name='Client Antenna', gain=dB(14))
+path_up = FreeSpacePathLossFriis(distance=km(5), freq=GHz(2.4))
+ap_antenna_rx = Antenna(name='AP Antenna', gain=dB(10))
+ap_rx_cable = Loss(name='AP Cable', loss=dB(2))
+
+uplink = budget(
+    elements=[client_tx_cable, client_antenna, path_up, ap_antenna_rx, ap_rx_cable],
+    available_input_power=dBm(15), # Client Transmit Power
+    input_freq=GHz(2.4)
+)
+
+uplink.display(with_icons=True, options=opt)
+plt.close()
+```
+
+The receive power at the AP is compared to its sensitivity (-89 dBm).
+
+```{python}
+received_power_up = dBm(uplink.output_power[-1])
+sensitivity_ap = dBm(-89)
+margin_up = received_power_up - sensitivity_ap
+indicator = "✅" if margin_up > 0 else "❌"
+print(f"Uplink Margin: {margin_up:.2f} dB {indicator}")
+```
+
+# Conclusion
+
+The link is feasible if both margins are positive. In a typical deployment, a margin of 10-20 dB is recommended to account for fading and obstacles.

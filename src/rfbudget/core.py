@@ -159,9 +159,11 @@ class Budget:
                     )
                     oip3_parts = [gain_linear * p for p in oip3_parts]
                     oip3_parts.insert(stage, oip3_linear)
-                    oip3_dict[stage] = dBm(
-                        10 * log10(1 / sum([1.0 / p for p in oip3_parts]))
-                    )
+                    s = sum([1.0 / p for p in oip3_parts])
+                    if s == 0:
+                        oip3_dict[stage] = dBm(float("inf"))
+                    else:
+                        oip3_dict[stage] = dBm(10 * log10(1 / s))
 
         # Convert back from dictionnary to list
         self.output_power = [
