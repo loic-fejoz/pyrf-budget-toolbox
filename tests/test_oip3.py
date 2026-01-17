@@ -1,4 +1,4 @@
-from rfbudget import *
+from rfbudget import Amplifier, budget
 from pytest import approx
 
 def test_iip3_2_amp():
