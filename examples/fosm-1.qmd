@@ -1,0 +1,319 @@
+---
+title: "FOSM-1"
+format: html
+---
+
+# Introduction
+
+This document aims at being another implementation of the [compuation made for the IARU coordination of FOSM-1](https://www.federation-openspacemakers.com/documents/40/AMSAT-IARU_Link_Model_Rev2.5.5-FOSM-1.xls).
+
+# Setup
+
+```{python}
+#| code-fold: true
+import matplotlib
+import matplotlib.pyplot as plt
+import math
+from rfbudget import GHz, m, km, dB, dBm, Antenna, Loss, FreeSpacePathLossFriis, budget, Orbit, degree, MHz, Cable, watt_to_dBm, kelvin
+from pytest import approx
+opt = {"with_gain": True, "with_nf": False, "simplified": True}
+
+def eng(x):
+    if x == 0: return "0"
+    exp = int(math.floor(math.log10(abs(x))/3)*3)
+    return f"{x/10**exp:g}e{exp}"
+```
+
+# LEO Orbit
+
+The Orbit should be a low-earth orbit (LEO) of about 520km.
+So we can compute the distance of the satellite for different elevation angles:
+
+```{python}
+#| code-fold: true
+o = Orbit(
+    apogee=km(520),
+    perigee=km(520),
+    inclination=degree(98.61))
+
+elevations = range(91)
+slant_ranges = [o.slant_range(degree(e)) / 1000 for e in elevations]
+plt.figure()
+plt.plot(elevations, slant_ranges)
+for e in [10, 30, 60]:
+    sr = o.slant_range(degree(e)) / 1000
+    plt.plot(e, sr, 'ro')
+    plt.annotate(f"{sr:.1f} km", (e, sr), textcoords="offset points", xytext=(0,10), ha='center')
+plt.xlabel("Elevation (degree)")
+plt.ylabel("Slant range (km)")
+plt.grid(True)
+plt.show()
+
+slant_range_10 = o.slant_range(degree(10))
+
+assert slant_range_10 == approx(km(1743.8), 0.1)
+```
+
+# Radio
+
+## Introduction
+
+FOSM-1 is on VHF for uplink, and UHF for downlink.
+
+```{python}
+#| code-fold: true
+#| label: tbl-planets
+#| tbl-cap: Astronomical object
+uplink_freq = MHz(145.8)
+downlink_freq = MHz(437.450)
+
+downlink_fpls = FreeSpacePathLossFriis("DL\nFPLS", 
+    distance=slant_range_10, freq=downlink_freq)
+uplink_fpls = FreeSpacePathLossFriis("UL\nFPLS",
+    distance=slant_range_10, freq=uplink_freq)
+
+from IPython.display import Markdown
+from tabulate import tabulate
+table = [["Uplink", eng(uplink_freq), -1 * uplink_fpls.gain],
+         ["Downlink", eng(downlink_freq), -1 * downlink_fpls.gain]]
+Markdown(tabulate(
+  table, 
+  headers=["Link","Frequency (Hz)", "Free Space Loss (dB)"],
+  floatfmt=("", "", ".2f")
+))
+```
+
+## Uplink Tx
+
+The ground station transmitter system consists of a 5W transmitter, 2 cables of 1m and 25m, a filter, a coupler and some connectors on the path to the antenna.
+
+```{python}
+#| code-fold: true
+tx_power = 5 # Watts
+cable_loss_per_m = dB(0.05)
+
+uplink_tx_system = budget(
+    available_input_power=watt_to_dBm(tx_power),
+    elements=[
+        Cable("Cable 1m", length=m(1), loss_per_m=cable_loss_per_m),
+        Loss("Filter", loss=dB(1)),
+        Cable("Cable 0.3m", length=m(0.3), loss_per_m=cable_loss_per_m),
+        Loss("Coupler", loss=dB(0.5)),
+        Cable("Cable 25m", length=m(25), loss_per_m=cable_loss_per_m),
+        Loss("Conn 1", loss=dB(0.05)),
+        Loss("Conn 2", loss=dB(0.05)),
+        Loss("Antenna\nMismatch", loss=dB(0.5)),
+    ]
+)
+
+# Display simplified schemdraw without NF
+uplink_tx_system.schemdraw(
+    options={
+        "with_gain": True,
+        "simplified": True,
+        "attr-font-size": 7})
+plt.show()
+
+total_line_loss = -1 * uplink_tx_system.transducer_gain[-1] # Gain is negative loss
+power_at_antenna_dBm = uplink_tx_system.output_power[-1]
+power_at_antenna_dBW = power_at_antenna_dBm - 30
+
+table_uplink = [
+    ["Total Line Losses", f"{total_line_loss:.2f}", "dB"],
+    ["Total Power Delivered to Antenna", f"{power_at_antenna_dBW:.2f}", "dBW"]
+]
+
+Markdown(tabulate(
+    table_uplink,
+    headers=["Parameter", "Value", "Unit"]
+))
+```
+
+## Downlink Tx
+
+The payload Tx on spacecraft is the Spino board, with a small RG316U cable and 2 connectors.
+
+```{python}
+#| code-fold: true
+tx_power = 0.5 # Watts
+RG316U_cable_loss_per_m = dB(0.60)
+
+downlink_tx_system = budget(
+    available_input_power=watt_to_dBm(tx_power),
+    elements=[
+        Cable("Cable\n15.24cm", length=m(0.1524),
+            loss_per_m=RG316U_cable_loss_per_m),
+        Loss("Conn 1", loss=dB(0.05)),
+        Loss("Conn 2", loss=dB(0.05)),
+        Loss("Antenna\nMismatch", loss=dB(0.24)),
+    ]
+)
+
+# Display simplified schemdraw without NF
+downlink_tx_system.schemdraw(
+    options={
+        "with_gain": True,
+        "simplified": True,
+        "attr-font-size": 7})
+plt.show()
+
+total_line_loss = -1 * downlink_tx_system.transducer_gain[-1] # Gain is negative loss
+power_at_antenna_dBm = downlink_tx_system.output_power[-1]
+power_at_antenna_dBW = power_at_antenna_dBm - 30
+
+table_downlink = [
+    ["Total Line Losses", f"{total_line_loss:.2f}", "dB"],
+    ["Total Power Delivered to Antenna", f"{power_at_antenna_dBW:.2f}", "dBW"]
+]
+
+Markdown(tabulate(
+    table_downlink,
+    headers=["Parameter", "Value", "Unit"]
+))
+```
+
+## Uplink Rx
+
+The receiver system at Spacecraft is again the Spino board. The antenna is connected with an RG316U cable of 0.1524m and 2 connectors to the Spino board's LNA.
+
+```{python}
+#| code-fold: true
+RG316U_cable_loss_per_m = dB(0.30)
+uplink_rx_line = budget(
+    elements=[
+        Cable("Cable\n15.24cm", length=m(0.1524),
+            loss_per_m=RG316U_cable_loss_per_m),
+        Loss("Conn 1", loss=dB(0.05)),
+        Loss("Conn 2", loss=dB(0.05)),
+    ]
+)
+
+# Display simplified schemdraw without NF
+uplink_rx_line.schemdraw(
+    options={
+        "with_gain": True,
+        "simplified": True,
+        "attr-font-size": 7})
+plt.show()
+
+total_rx_line_loss = -1 * uplink_rx_line.transducer_gain[-1]
+
+table_rx = [
+    ["Total In-line Losses", f"{total_rx_line_loss:.2f}", "dB"]
+]
+
+Markdown(tabulate(
+    table_rx,
+    headers=["Parameter", "Value", "Unit"]
+))
+```
+
+The antenna of sky temperature `Ta` is 110K, while the spacecraft temperature `T0` is 137K.
+
+The LNA gain is 25dB and its temperature is 15K.
+The second stage temperature is 200K.
+
+```{python}
+#| code-fold: true
+Ta = kelvin(110)
+T0 = kelvin(137)
+T_lna = kelvin(15)
+G_lna_dB = dB(25)
+T_stage2 = kelvin(200)
+
+# Transmission line loss factor L (linear)
+L = 10**(-total_rx_line_loss / 10)
+
+# Receiver noise temperature (referred to LNA input)
+G_lna_lin = 10**(G_lna_dB / 10)
+T_rcvr = T_lna + T_stage2 / G_lna_lin
+
+# System noise temperature (referred to antenna input)
+T_sys = Ta * L + T0 * (1-L) + T_rcvr
+
+table_noise = [
+    ["Transmission Line Loss Factor (L)", f"{L:.3f}", ""],
+    ["Receiver Noise Temp (Trx)", f"{T_rcvr:.2f}", "K"],
+    ["System Noise Temp (Tsys)", f"{T_sys:.2f}", "K"]
+]
+
+Markdown(tabulate(
+    table_noise,
+    headers=["Parameter", "Value", "Unit"]
+))
+```
+
+## Downlink Rx
+
+The receiver system at the ground station uses an antenna connected to the LNA through several cables and connectors.
+
+```{python}
+#| code-fold: true
+cable_loss_per_m = dB(0.092)
+
+downlink_rx_line = budget(
+    elements=[
+        Loss("Conn 1", loss=dB(0.05)),
+        Cable("Cable\n2m", length=m(2),
+            loss_per_m=cable_loss_per_m),
+        Loss("Conn 2", loss=dB(0.05)),            
+        Loss("Conn 3", loss=dB(0.05)),
+        Cable("Cable\n0.3m", length=m(0.3),
+            loss_per_m=cable_loss_per_m),
+        Loss("Filter", loss=dB(0.1)), # Bandpass filter
+        Loss("Conn 4", loss=dB(0.05)),
+        Cable("Cable\n0.3m", length=m(0.3),
+            loss_per_m=cable_loss_per_m),
+
+    ]
+)
+
+# Display simplified schemdraw
+downlink_rx_line.schemdraw(
+    options={
+        "with_gain": True,
+        "simplified": True,
+        "attr-font-size": 7})
+plt.show()
+
+total_downlink_rx_line_loss = -1 * downlink_rx_line.transducer_gain[-1]
+
+# Temperatures
+Ta = kelvin(110) # Antenna T°
+T0 = kelvin(290) # Feedline T°
+T_lna = kelvin(3) # LNA T°
+G_lna_dB = dB(25) # LNA gain
+T_fe = kelvin(500) # Front-end T°
+
+# Receiver noise temperature (referred to LNA input)
+#   LNA temperature contribution: T_lna
+#   Post-LNA cable contribution (at LNA output): T0 * (1 - G_post) / G_post
+#   Receiver front-end contribution (at cable input): T_fe / G_post
+#   Sum referred to LNA input: T_lna + (T0 * (1 - G_post) / G_post + T_fe / G_post) / G_lna
+
+G_lna_lin = 10**(G_lna_dB / 10)
+post_lna_cable_loss_dB = 25 * 0.092
+G_post_lin = 10**(-post_lna_cable_loss_dB / 10)
+
+T_rcvr = T_lna + (T0 * (1 - G_post_lin) / G_post_lin + T_fe / G_post_lin) / G_lna_lin
+
+# Transmission line loss factor L (linear gain factor)
+L = 10**(-total_downlink_rx_line_loss / 10)
+
+# System noise temperature (referred to LNA input)
+Ts = Ta * L + T0 * (1 - L) + T_rcvr
+
+table_downlink_rx = [
+    ["Total In-line Losses", f"{total_downlink_rx_line_loss:.3f}", "dB"],
+    ["Transmission Line Loss Factor (L)", f"{L:.3f}", ""],
+    ["Receiver Noise Temp (Trx)", f"{T_rcvr:.2f}", "K"],
+    ["System Noise Temp (Ts)", f"{Ts:.2f}", "K"]
+]
+
+Markdown(tabulate(
+    table_downlink_rx,
+    headers=["Parameter", "Value", "Unit"]
+))
+```
+
+
