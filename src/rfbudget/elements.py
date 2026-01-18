@@ -1,6 +1,6 @@
 from typing import Optional, Any
 from .core import Element
-from .utils import Hz_t, dB_t, dBm_t, dB, Hz
+from .utils import Hz_t, dB_t, dBm_t, dB, Hz, m_t, loss_temp_to_nf, kelvin_t
 
 
 class Antenna(Element):
@@ -78,15 +78,20 @@ class Loss(TwoPortsElement):
         self,
         name: Optional[str] = None,
         loss: dB_t = dB(0),
+        temp: Optional[kelvin_t] = None,
         oip3: Optional[dBm_t] = None,
         z_in: float = 50,
         z_out: float = 50,
     ):
+        if temp is not None:
+            nf = loss_temp_to_nf(loss, temp)
+        else:
+            nf = loss
         TwoPortsElement.__init__(
             self,
             name=name or "Loss",
             gain=dB(-loss),
-            nf=loss,
+            nf=nf,
             oip3=oip3,
             z_in=z_in,
             z_out=z_out,
@@ -109,6 +114,28 @@ class PathLoss(Loss):
     ):
         Loss.__init__(
             self, name=name or "PathLoss", loss=loss, oip3=oip3, z_in=z_in, z_out=z_out
+        )
+
+
+class Cable(Loss):
+    def __init__(
+        self,
+        name: Optional[str] = None,
+        length: m_t = m_t(0),
+        loss_per_m: dB_t = dB(0),
+        temp: Optional[kelvin_t] = None,
+        oip3: Optional[dBm_t] = None,
+        z_in: float = 50,
+        z_out: float = 50,
+    ):
+        Loss.__init__(
+            self,
+            name=name or "Cable",
+            loss=dB_t(length * loss_per_m),
+            temp=temp,
+            oip3=oip3,
+            z_in=z_in,
+            z_out=z_out,
         )
 
 

@@ -1,6 +1,6 @@
 from numpy import log10, log2
 from typing import List, Optional, Any
-from .utils import Hz_t, dB_t, dBm_t, kelvin_t, dB, dBm, Hz, kelvin
+from .utils import Hz_t, dB_t, dBm_t, kelvin_t, dB, dBm, Hz, kelvin, temp_to_nf, nf_to_temp
 
 
 class Element:
@@ -12,13 +12,19 @@ class Element:
         self,
         name: Optional[str] = None,
         gain: dB_t = dB(0),
-        nf: dB_t = dB(0),
+        nf: Optional[dB_t] = None,
+        temp: Optional[kelvin_t] = None,
         oip3: Optional[dBm_t] = None,
         iip3: Optional[dBm_t] = None,
     ):
         self.name: str = name or ""
         self.gain: dB_t = gain
-        self.nf: dB_t = nf
+        if nf is not None:
+            self.nf = nf
+        elif temp is not None:
+            self.nf = temp_to_nf(temp)
+        else:
+            self.nf = dB(0)
         self.iip3: Optional[dBm_t] = iip3
         self.oip3: Optional[dBm_t] = oip3
         if oip3 is None and iip3 is not None and gain is not None:
@@ -66,6 +72,7 @@ class Budget:
         self.oip3: List[dBm_t] = []
         self.snr: List[dB_t] = []
         self.capacity: List[float] = []
+        self.total_noise_temp: List[kelvin_t] = []
         self.receiver_thermal_noise_dBm: Optional[dBm_t] = None
         self.update()
 
@@ -135,9 +142,14 @@ class Budget:
 
             # SNR
             # See https://www.commagility.com/images/pdfs/white_papers/Introduction_to_RF_Link_Budgeting_CommAgility.pdf
-            noise_at_stage = self.receiver_thermal_noise_dBm + nf_dict[stage]
+            # SNR = P_sig / P_noise
+            # P_noise = k * (T_source + T_eff) * B
+            t_eff = nf_to_temp(nf_dict[stage])
+            total_noise_W = k_boltzmann * (self.T_receiver + t_eff) * self.signal_bandwidth
+            total_noise_dBm = dBm(10 * log10(total_noise_W * 1000))
+
             snr_dict[stage] = dB(
-                output_power_dict[stage] - noise_at_stage - transducer_gain_dict[stage]
+                output_power_dict[stage] - total_noise_dBm - transducer_gain_dict[stage]
             )
 
             # Capacity
@@ -182,6 +194,10 @@ class Budget:
         self.snr = [dB(snr_dict[stage]) for stage, elt in enumerate(self.elements)]
         self.capacity = [
             float(capacity_dict[stage]) for stage, elt in enumerate(self.elements)
+        ]
+        self.total_noise_temp = [
+            kelvin(self.T_receiver + nf_to_temp(nf_dict[stage]))
+            for stage, elt in enumerate(self.elements)
         ]
         if self.with_oip:
             self.oip3 = [

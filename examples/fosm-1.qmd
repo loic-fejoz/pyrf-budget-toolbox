@@ -14,7 +14,7 @@ This document aims at being another implementation of the [compuation made for t
 import matplotlib
 import matplotlib.pyplot as plt
 import math
-from rfbudget import GHz, m, km, dB, dBm, Antenna, Loss, FreeSpacePathLossFriis, budget, Orbit, degree, MHz, Cable, watt_to_dBm, kelvin
+from rfbudget import GHz, m, km, dB, dBm, Antenna, Loss, FreeSpacePathLossFriis, budget, Orbit, degree, MHz, Cable, watt_to_dBm, kelvin, Element, nf_to_temp
 from pytest import approx
 opt = {"with_gain": True, "with_nf": False, "simplified": True}
 
@@ -224,17 +224,26 @@ T_stage2 = kelvin(200)
 # Transmission line loss factor L (linear)
 L = 10**(-total_rx_line_loss / 10)
 
-# Receiver noise temperature (referred to LNA input)
-G_lna_lin = 10**(G_lna_dB / 10)
-T_rcvr = T_lna + T_stage2 / G_lna_lin
+# Receiver and System noise temperature using library
+b_rx = budget(
+    elements=[
+        Loss("Line", loss=total_rx_line_loss, temp=T0),
+        Element("LNA", gain=G_lna_dB, temp=T_lna),
+        Element("Stage 2", temp=T_stage2)
+    ],
+    T_receiver=Ta
+)
 
-# System noise temperature (referred to antenna input)
-T_sys = Ta * L + T0 * (1-L) + T_rcvr
+T_rcvr_lib = nf_to_temp(b_rx.nf[2])
+# total_noise_temp[2] is referred to Antenna input (stage 0)
+Ts_lib_at_antenna = b_rx.total_noise_temp[2]
+Ts_lib_at_lna = Ts_lib_at_antenna * L
 
 table_noise = [
     ["Transmission Line Loss Factor (L)", f"{L:.3f}", ""],
-    ["Receiver Noise Temp (Trx)", f"{T_rcvr:.2f}", "K"],
-    ["System Noise Temp (Tsys)", f"{T_sys:.2f}", "K"]
+    ["Receiver Noise Temp (Trx)", f"{T_rcvr_lib:.2f}", "K"],
+    ["System Noise Temp (Ts @ Antenna)", f"{Ts_lib_at_antenna:.2f}", "K"],
+    ["System Noise Temp (Ts @ LNA)", f"{Ts_lib_at_lna:.2f}", "K"]
 ]
 
 Markdown(tabulate(
@@ -285,29 +294,37 @@ T_lna = kelvin(3) # LNA T°
 G_lna_dB = dB(25) # LNA gain
 T_fe = kelvin(500) # Front-end T°
 
-# Receiver noise temperature (referred to LNA input)
-#   LNA temperature contribution: T_lna
-#   Post-LNA cable contribution (at LNA output): T0 * (1 - G_post) / G_post
-#   Receiver front-end contribution (at cable input): T_fe / G_post
-#   Sum referred to LNA input: T_lna + (T0 * (1 - G_post) / G_post + T_fe / G_post) / G_lna
+# Receiver noise temperatures using library
+post_lna_cable_length = m(25)
+b_down_rx = budget(
+    elements=[
+        Element("LNA", gain=G_lna_dB, temp=T_lna),
+        Cable("Post-LNA Cable", length=post_lna_cable_length, 
+              loss_per_m=cable_loss_per_m, temp=T0),
+        Element("Front-end", temp=T_fe)
+    ]
+)
+T_rcvr_lib = nf_to_temp(b_down_rx.nf[2])
 
-G_lna_lin = 10**(G_lna_dB / 10)
-post_lna_cable_loss_dB = 25 * 0.092
-G_post_lin = 10**(-post_lna_cable_loss_dB / 10)
-
-T_rcvr = T_lna + (T0 * (1 - G_post_lin) / G_post_lin + T_fe / G_post_lin) / G_lna_lin
+# System Noise Temperature using library
+b_down_total = budget(
+    elements=downlink_rx_line.elements + b_down_rx.elements,
+    T_receiver=Ta
+)
 
 # Transmission line loss factor L (linear gain factor)
 L = 10**(-total_downlink_rx_line_loss / 10)
 
-# System noise temperature (referred to LNA input)
-Ts = Ta * L + T0 * (1 - L) + T_rcvr
+# referred to Antenna input (stage 0)
+Ts_lib_at_antenna = b_down_total.total_noise_temp[-1]
+Ts_lib_at_lna = Ts_lib_at_antenna * L
 
 table_downlink_rx = [
     ["Total In-line Losses", f"{total_downlink_rx_line_loss:.3f}", "dB"],
     ["Transmission Line Loss Factor (L)", f"{L:.3f}", ""],
-    ["Receiver Noise Temp (Trx)", f"{T_rcvr:.2f}", "K"],
-    ["System Noise Temp (Ts)", f"{Ts:.2f}", "K"]
+    ["Receiver Noise Temp (Trx)", f"{T_rcvr_lib:.2f}", "K"],
+    ["System Noise Temp (Ts @ Antenna)", f"{Ts_lib_at_antenna:.2f}", "K"],
+    ["System Noise Temp (Ts @ LNA)", f"{Ts_lib_at_lna:.2f}", "K"]
 ]
 
 Markdown(tabulate(

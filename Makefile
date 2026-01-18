@@ -21,6 +21,9 @@ quarto: ## Render all Quarto examples
 quarto-preview-feasibility_5km_link: ## Preview a Quarto example
 	uv run quarto preview examples/feasibility_5km_link.qmd --no-browser
 
+quarto-preview-fosm-1: ## Preview a Quarto example
+	uv run quarto preview examples/fosm-1.qmd --no-browser
+
 clean: ## Remove temporary files and build artifacts
 	rm -rf .ruff_cache
 	rm -rf .pytest_cache
